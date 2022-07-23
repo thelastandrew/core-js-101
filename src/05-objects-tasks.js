@@ -20,10 +20,11 @@
  *    console.log(r.height);      // => 20
  *    console.log(r.getArea());   // => 200
  */
-function Rectangle(/* width, height */) {
-  throw new Error('Not implemented');
+function Rectangle(width, height) {
+  this.width = width;
+  this.height = height;
+  this.getArea = () => this.width * this.height;
 }
-
 
 /**
  * Returns the JSON representation of specified object
@@ -35,8 +36,8 @@ function Rectangle(/* width, height */) {
  *    [1,2,3]   =>  '[1,2,3]'
  *    { width: 10, height : 20 } => '{"height":10,"width":20}'
  */
-function getJSON(/* obj */) {
-  throw new Error('Not implemented');
+function getJSON(obj) {
+  return JSON.stringify(obj);
 }
 
 
@@ -51,8 +52,8 @@ function getJSON(/* obj */) {
  *    const r = fromJSON(Circle.prototype, '{"radius":10}');
  *
  */
-function fromJSON(/* proto, json */) {
-  throw new Error('Not implemented');
+function fromJSON(proto, json) {
+  return Object.create(proto, Object.getOwnPropertyDescriptors(JSON.parse(json)));
 }
 
 
@@ -110,34 +111,99 @@ function fromJSON(/* proto, json */) {
  *  For more examples see unit tests.
  */
 
+class Builder {
+  constructor() {
+    this.selectors = new Map();
+    this.orderRule = ['element', 'id', 'class', 'attr', 'pseudoClass', 'pseudoElement'];
+    this.currentOrder = [];
+    this.stringRes = '';
+  }
+
+  checkOrder(selector) {
+    if (
+      this.currentOrder.length > 0
+      && this.orderRule.indexOf(selector)
+      < this.orderRule.indexOf(this.currentOrder[this.currentOrder.length - 1])
+    ) {
+      throw new Error('Selector parts should be arranged in the following order: element, id, class, attribute, pseudo-class, pseudo-element');
+    }
+    if (!this.currentOrder.includes(selector)) this.currentOrder.push(selector);
+  }
+
+  checkUniq(selector) {
+    if (this.selectors.has(selector)) {
+      throw new Error('Element, id and pseudo-element should not occur more then one time inside the selector');
+    }
+  }
+
+  hasSelectors(selector) {
+    if (!this.selectors.has(selector)) this.selectors.set(selector, []);
+  }
+
+  setUniqSelector(selector, value) {
+    this.checkOrder(selector);
+    this.checkUniq(selector);
+    this.selectors.set(selector, value);
+  }
+
+  setRegSelector(selector, value) {
+    this.checkOrder(selector);
+    this.hasSelectors(selector);
+    this.selectors.get(selector).push(value);
+  }
+
+  combine(sel1, sep, sel2) {
+    this.stringRes = `${sel1.stringify()} ${sep} ${sel2.stringify()}`;
+    return this;
+  }
+
+  stringify() {
+    this.currentOrder.forEach((sel) => {
+      if (Array.isArray(this.selectors.get(sel))) this.selectors.set(sel, this.selectors.get(sel).join(''));
+      this.stringRes += this.selectors.get(sel);
+    });
+    return this.stringRes;
+  }
+
+  element(value) {
+    this.setUniqSelector('element', value);
+    return this;
+  }
+
+  id(value) {
+    this.setUniqSelector('id', `#${value}`);
+    return this;
+  }
+
+  class(value) {
+    this.setRegSelector('class', `.${value}`);
+    return this;
+  }
+
+  attr(value) {
+    this.setRegSelector('attr', `[${value}]`);
+    return this;
+  }
+
+  pseudoClass(value) {
+    this.setRegSelector('pseudoClass', `:${value}`);
+    return this;
+  }
+
+  pseudoElement(value) {
+    this.setUniqSelector('pseudoElement', `::${value}`);
+    return this;
+  }
+}
+
 const cssSelectorBuilder = {
-  element(/* value */) {
-    throw new Error('Not implemented');
-  },
-
-  id(/* value */) {
-    throw new Error('Not implemented');
-  },
-
-  class(/* value */) {
-    throw new Error('Not implemented');
-  },
-
-  attr(/* value */) {
-    throw new Error('Not implemented');
-  },
-
-  pseudoClass(/* value */) {
-    throw new Error('Not implemented');
-  },
-
-  pseudoElement(/* value */) {
-    throw new Error('Not implemented');
-  },
-
-  combine(/* selector1, combinator, selector2 */) {
-    throw new Error('Not implemented');
-  },
+  element: (value) => new Builder().element(value),
+  id: (value) => new Builder().id(value),
+  class: (value) => new Builder().class(value),
+  attr: (value) => new Builder().attr(value),
+  pseudoClass: (value) => new Builder().pseudoClass(value),
+  pseudoElement: (value) => new Builder().pseudoElement(value),
+  combine: (sel1, sep, sel2) => new Builder().combine(sel1, sep, sel2),
 };
 
 
